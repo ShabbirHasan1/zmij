@@ -1,3 +1,5 @@
+#![allow(clippy::unreadable_literal)]
+
 fn dtoa(value: f64) -> String {
     zmij::Buffer::new().format(value).to_owned()
 }
