@@ -25,7 +25,7 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-const BUFFER_SIZE: usize = 25;
+const BUFFER_SIZE: usize = 24;
 
 #[allow(non_camel_case_types)]
 struct uint128 {
@@ -818,7 +818,6 @@ unsafe fn write(mut buffer: *mut u8, dec_sig: u64, mut dec_exp: i32) -> *mut u8 
         buffer.write(b'0' + a as u8);
         buffer = buffer.add(usize::from(dec_exp >= 100));
         ptr::copy_nonoverlapping(digits2(bb as usize), buffer, 2);
-        buffer.add(2).write(b'\0');
         buffer.add(2)
     }
 }
@@ -848,19 +847,19 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
             return unsafe {
                 ptr::copy_nonoverlapping(
                     if bin_sig == 0 {
-                        c"inf".as_ptr().cast::<u8>()
+                        b"inf".as_ptr()
                     } else {
-                        c"nan".as_ptr().cast::<u8>()
+                        b"nan".as_ptr()
                     },
                     buffer,
-                    4,
+                    3,
                 );
                 buffer.add(3)
             };
         }
         if bin_sig == 0 {
             return unsafe {
-                ptr::copy_nonoverlapping(c"0".as_ptr().cast::<u8>(), buffer, 2);
+                buffer.write(b'0');
                 buffer.add(1)
             };
         }
@@ -996,7 +995,6 @@ impl Buffer {
     pub fn format(&mut self, f: f64) -> &str {
         unsafe {
             let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
-            debug_assert_eq!(*end, b'\0');
             let len = end.offset_from_unsigned(self.bytes.as_ptr().cast::<u8>());
             let slice = slice::from_raw_parts(self.bytes.as_ptr().cast::<u8>(), len);
             str::from_utf8_unchecked(slice)
