@@ -996,3 +996,9 @@ impl Buffer {
         }
     }
 }
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Buffer::new()
+    }
+}
