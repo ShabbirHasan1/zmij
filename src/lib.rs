@@ -26,6 +26,9 @@ use core::slice;
 use core::str;
 
 const BUFFER_SIZE: usize = 24;
+const NAN: &str = "NaN";
+const INFINITY: &str = "inf";
+const NEG_INFINITY: &str = "-inf";
 
 #[allow(non_camel_case_types)]
 struct uint128 {
@@ -842,21 +845,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     const EXP_MASK: i32 = (1 << NUM_EXP_BITS) - 1;
     const EXP_BIAS: i32 = (1 << (NUM_EXP_BITS - 1)) - 1;
     let mut bin_exp = (bits >> NUM_SIG_BITS) as i32 & EXP_MASK; // binary exponent
-    if ((bin_exp + 1) & EXP_MASK) <= 1 {
-        if bin_exp != 0 {
-            return unsafe {
-                ptr::copy_nonoverlapping(
-                    if bin_sig == 0 {
-                        b"inf".as_ptr()
-                    } else {
-                        b"nan".as_ptr()
-                    },
-                    buffer,
-                    3,
-                );
-                buffer.add(3)
-            };
-        }
+    if bin_exp == 0 {
         if bin_sig == 0 {
             return unsafe {
                 buffer.write(b'0');
@@ -994,12 +983,40 @@ impl Buffer {
     }
 
     pub fn format(&mut self, f: f64) -> &str {
+        if is_nonfinite(f) {
+            format_nonfinite(f)
+        } else {
+            self.format_finite(f)
+        }
+    }
+
+    pub fn format_finite(&mut self, f: f64) -> &str {
         unsafe {
             let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
             let len = end.offset_from_unsigned(self.bytes.as_ptr().cast::<u8>());
             let slice = slice::from_raw_parts(self.bytes.as_ptr().cast::<u8>(), len);
             str::from_utf8_unchecked(slice)
         }
+    }
+}
+
+fn is_nonfinite(f: f64) -> bool {
+    const EXP_MASK: u64 = 0x7ff0000000000000;
+    let bits = f.to_bits();
+    bits & EXP_MASK == EXP_MASK
+}
+
+#[cold]
+fn format_nonfinite(f: f64) -> &'static str {
+    const MANTISSA_MASK: u64 = 0x000fffffffffffff;
+    const SIGN_MASK: u64 = 0x8000000000000000;
+    let bits = f.to_bits();
+    if bits & MANTISSA_MASK != 0 {
+        NAN
+    } else if bits & SIGN_MASK != 0 {
+        NEG_INFINITY
+    } else {
+        INFINITY
     }
 }
 

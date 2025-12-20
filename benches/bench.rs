@@ -9,7 +9,7 @@ fn do_bench(c: &mut Criterion, group_name: &str, float: f64) {
         let mut buf = zmij::Buffer::new();
         b.iter(move || {
             let float = hint::black_box(float);
-            let formatted = buf.format(float);
+            let formatted = buf.format_finite(float);
             hint::black_box(formatted);
         });
     });
