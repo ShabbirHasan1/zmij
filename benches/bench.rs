@@ -36,6 +36,7 @@ fn do_bench(c: &mut Criterion, group_name: &str, float: f64) {
 fn bench(c: &mut Criterion) {
     do_bench(c, "f64[0]", 0f64);
     do_bench(c, "f64[short]", 0.1234f64);
+    do_bench(c, "f64[medium]", 0.123456789f64);
     do_bench(c, "f64[e]", f64::consts::E);
     do_bench(c, "f64[max]", f64::MAX);
 }
