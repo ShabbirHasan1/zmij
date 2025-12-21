@@ -975,7 +975,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     let end = unsafe { write_significand(buffer.add(1), dec_sig) };
     let length = unsafe { end.offset_from_unsigned(buffer.add(1)) };
 
-    if length as i32 - 1 <= dec_exp && dec_exp <= 15 {
+    if (length as i32 - 1..=15).contains(&dec_exp) {
         // 1234e7 -> 12340000000.0
         unsafe {
             ptr::copy(buffer.add(1), buffer, length);
@@ -984,14 +984,14 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
             *buffer.add(dec_exp as usize + 2) = b'0';
             return buffer.add(dec_exp as usize + 3);
         }
-    } else if 0 <= dec_exp && dec_exp <= 15 {
+    } else if (0..=15).contains(&dec_exp) {
         // 1234e-2 -> 12.34
         unsafe {
             ptr::copy(buffer.add(1), buffer, dec_exp as usize + 1);
             *buffer.add(dec_exp as usize + 1) = b'.';
             return buffer.add(length + 1);
         }
-    } else if -5 <= dec_exp && dec_exp <= -1 {
+    } else if (-5..=-1).contains(&dec_exp) {
         // 1234e-6 -> 0.001234
         unsafe {
             ptr::copy(buffer.add(1), buffer.add((1 - dec_exp) as usize), length);
