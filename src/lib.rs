@@ -979,9 +979,8 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         // 1234e7 -> 12340000000.0
         unsafe {
             ptr::copy(buffer.add(1), buffer, length);
-            ptr::write_bytes(buffer.add(length), b'0', dec_exp as usize + 1 - length);
+            ptr::write_bytes(buffer.add(length), b'0', dec_exp as usize + 3 - length);
             *buffer.add(dec_exp as usize + 1) = b'.';
-            *buffer.add(dec_exp as usize + 2) = b'0';
             return buffer.add(dec_exp as usize + 3);
         }
     } else if (0..=15).contains(&dec_exp) {
@@ -995,9 +994,8 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         // 1234e-6 -> 0.001234
         unsafe {
             ptr::copy(buffer.add(1), buffer.add((1 - dec_exp) as usize), length);
-            *buffer = b'0';
+            ptr::write_bytes(buffer, b'0', (1 - dec_exp) as usize);
             *buffer.add(1) = b'.';
-            ptr::write_bytes(buffer.add(2), b'0', (-1 - dec_exp) as usize);
             return buffer.add((1 - dec_exp) as usize + length);
         }
     } else if length == 1 {
