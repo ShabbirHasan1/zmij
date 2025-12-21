@@ -897,14 +897,17 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         } = umul192_upper128(pow10_hi, pow10_lo, bin_sig << exp_shift);
         let digit = integral % 10;
 
-        const NUM_FRACTIONAL_BITS: i32 = 60;
+        // Switch to a fixed-point representation with the integral part in the
+        // upper 4 bits and the rest being the fractional part.
+        const NUM_INTEGRAL_BITS: i32 = 4;
+        const NUM_FRACTIONAL_BITS: i32 = NUM_BITS as i32 - NUM_INTEGRAL_BITS;
         const TEN: u64 = 10 << NUM_FRACTIONAL_BITS;
         // Fixed-point remainder of the scaled significand modulo 10.
-        let rem10 = (digit << NUM_FRACTIONAL_BITS) | (fractional >> 4);
+        let rem10 = (digit << NUM_FRACTIONAL_BITS) | (fractional >> NUM_INTEGRAL_BITS);
         // dec_exp is chosen such that 10**dec_exp <= 2**bin_exp < 10**(dec_exp + 1)
         // Since 1ulp = 2**bin_exp it will be in the range [1, 10) after scaling
         // by 10**dec_exp.
-        let half_ulp = pow10_hi >> (5 - exp_shift);
+        let half_ulp = pow10_hi >> (NUM_INTEGRAL_BITS - exp_shift + 1);
         let upper = rem10 + half_ulp;
 
         // An optimization from yy_double by Yaoyuan Guo:
