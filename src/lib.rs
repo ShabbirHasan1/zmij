@@ -857,14 +857,6 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     bin_sig ^= IMPLICIT_BIT;
     bin_exp -= NUM_SIG_BITS + EXP_BIAS;
 
-    // Handle small integers.
-    if (-NUM_SIG_BITS..0).contains(&bin_exp) {
-        let f = bin_sig >> -bin_exp;
-        if (f << -bin_exp) == bin_sig {
-            return unsafe { write(buffer, f, 0) };
-        }
-    }
-
     // Compute the decimal exponent as floor(log10(2**bin_exp)) if regular or
     // floor(log10(3/4 * 2**bin_exp)) otherwise, without branching.
     // log10_3_over_4_sig = round(log10(3/4) * 2**log10_2_exp)
