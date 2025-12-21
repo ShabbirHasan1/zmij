@@ -56,6 +56,8 @@ use core::mem::{self, MaybeUninit};
 use core::ptr;
 use core::slice;
 use core::str;
+#[cfg(feature = "no-panic")]
+use no_panic::no_panic;
 
 const BUFFER_SIZE: usize = 24;
 const NAN: &str = "NaN";
@@ -692,10 +694,12 @@ static POW10_SIGNIFICANDS: [(u64, u64); 617] = [
 ];
 
 // Computes 128-bit result of multiplication of two 64-bit unsigned integers.
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn umul128(x: u64, y: u64) -> u128 {
     u128::from(x) * u128::from(y)
 }
 
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn umul192_upper128(x_hi: u64, x_lo: u64, y: u64) -> uint128 {
     let p = umul128(x_hi, y);
     let lo = (p as u64).wrapping_add((umul128(x_lo, y) >> 64) as u64);
@@ -707,6 +711,7 @@ fn umul192_upper128(x_hi: u64, x_lo: u64, y: u64) -> uint128 {
 
 // Computes upper 64 bits of multiplication of x and y, discards the least
 // significant bit and rounds to odd, where x = uint128_t(x_hi << 64) | x_lo.
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn umul192_upper64_inexact_to_odd(x_hi: u64, x_lo: u64, y: u64) -> u64 {
     let uint128 { hi, lo } = umul192_upper128(x_hi, x_lo, y);
     hi | u64::from((lo >> 1) != 0)
@@ -721,6 +726,7 @@ fn divmod100(value: u32) -> (u32, u32) {
     (div, value - div * 100)
 }
 
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn count_trailing_nonzeros(x: u64) -> usize {
     // This assumes little-endian, that is the first char of the string is in
     // the lowest byte and the last char is in the highest byte.
@@ -745,6 +751,7 @@ fn count_trailing_nonzeros(x: u64) -> usize {
 
 // Converts value in the range [0, 100) to a string. GCC generates a bit better
 // code when value is pointer-size (https://www.godbolt.org/z/5fEPMT1cc).
+#[cfg_attr(feature = "no-panic", no_panic)]
 unsafe fn digits2(value: usize) -> &'static u16 {
     // Align data since unaligned access may be slower when crossing a
     // hardware-specific boundary.
@@ -767,6 +774,7 @@ unsafe fn digits2(value: usize) -> &'static u16 {
     }
 }
 
+#[cfg_attr(feature = "no-panic", no_panic)]
 unsafe fn digits2_u64(value: u32) -> u64 {
     let digits = unsafe { digits2(value as usize) };
     u64::from(*digits)
@@ -774,6 +782,7 @@ unsafe fn digits2_u64(value: u32) -> u64 {
 
 // Converts the value `aa * 10**6 + bb * 10**4 + cc * 10**2 + dd` to a string
 // returned as a 64-bit integer.
+#[cfg_attr(feature = "no-panic", no_panic)]
 unsafe fn digits8_u64(aa: u32, bb: u32, cc: u32, dd: u32) -> u64 {
     unsafe {
         digits2_u64(dd) << 48 | digits2_u64(cc) << 32 | digits2_u64(bb) << 16 | digits2_u64(aa)
@@ -782,6 +791,7 @@ unsafe fn digits8_u64(aa: u32, bb: u32, cc: u32, dd: u32) -> u64 {
 
 // Writes a significand consisting of 16 or 17 decimal digits and removes
 // trailing zeros.
+#[cfg_attr(feature = "no-panic", no_panic)]
 unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     // Each digits is denoted by a letter so value is abbccddeeffgghhii where
     // digit a can be zero.
@@ -832,6 +842,7 @@ struct fp {
 
 // Converts a binary FP number bin_sig * 2**bin_exp to the shortest decimal
 // representation.
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn to_decimal(bin_sig: u64, bin_exp: i32, regular: bool) -> fp {
     // Compute the decimal exponent as floor(log10(2**bin_exp)) if regular or
     // floor(log10(3/4 * 2**bin_exp)) otherwise, without branching.
@@ -952,6 +963,7 @@ fn to_decimal(bin_sig: u64, bin_exp: i32, regular: bool) -> fp {
 
 /// Writes the shortest correctly rounded decimal representation of `value` to
 /// `buffer`. `buffer` should point to a buffer of size `buffer_size` or larger.
+#[cfg_attr(feature = "no-panic", no_panic)]
 unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     let bits = value.to_bits();
 
@@ -1065,6 +1077,7 @@ impl Buffer {
     /// This is a cheap operation; you don't need to worry about reusing buffers
     /// for efficiency.
     #[inline]
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn new() -> Self {
         let bytes = [MaybeUninit::<u8>::uninit(); BUFFER_SIZE];
         Buffer { bytes }
@@ -1081,6 +1094,7 @@ impl Buffer {
     /// If your input is known to be finite, you may get better performance by
     /// calling the `format_finite` method instead of `format` to avoid the
     /// checks for special cases.
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn format(&mut self, f: f64) -> &str {
         if is_nonfinite(f) {
             format_nonfinite(f)
@@ -1104,6 +1118,7 @@ impl Buffer {
     /// [`is_finite`]: f64::is_finite
     /// [`is_nan`]: f64::is_nan
     /// [`is_infinite`]: f64::is_infinite
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn format_finite(&mut self, f: f64) -> &str {
         unsafe {
             let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
@@ -1114,6 +1129,7 @@ impl Buffer {
     }
 }
 
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn is_nonfinite(f: f64) -> bool {
     const EXP_MASK: u64 = 0x7ff0000000000000;
     let bits = f.to_bits();
@@ -1121,6 +1137,7 @@ fn is_nonfinite(f: f64) -> bool {
 }
 
 #[cold]
+#[cfg_attr(feature = "no-panic", no_panic)]
 fn format_nonfinite(f: f64) -> &'static str {
     const MANTISSA_MASK: u64 = 0x000fffffffffffff;
     const SIGN_MASK: u64 = 0x8000000000000000;
@@ -1136,6 +1153,7 @@ fn format_nonfinite(f: f64) -> &'static str {
 
 impl Default for Buffer {
     #[inline]
+    #[cfg_attr(feature = "no-panic", no_panic)]
     fn default() -> Self {
         Buffer::new()
     }
