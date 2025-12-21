@@ -977,7 +977,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         sig: dec_sig,
         exp: mut dec_exp,
     } = to_decimal(bin_sig, bin_exp, regular);
-    dec_exp += 15 + i32::from(dec_sig >= const { 10u64.pow(16) });
+    dec_exp += 15 + i32::from(dec_sig >= 10_000_000_000_000_000);
 
     let end = unsafe { write_significand(buffer.add(1), dec_sig) };
     let length = unsafe { end.offset_from(buffer.add(1)) } as usize;
