@@ -761,6 +761,7 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     let (a, bb) = divmod100(abb);
     let (dd, ee) = divmod100(ddee);
 
+    let start = buffer;
     unsafe {
         buffer.write(b'0' + a as u8);
         buffer = buffer.add(usize::from(a != 0));
@@ -774,7 +775,9 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
         buffer.cast::<u64>().write_unaligned(digits);
     }
     if ffgghhii == 0 {
-        return unsafe { buffer.add(count_trailing_nonzeros(digits)) };
+        buffer = unsafe { buffer.add(count_trailing_nonzeros(digits)) };
+        buffer = unsafe { buffer.sub(usize::from(buffer.offset_from(start) == 1)) };
+        return buffer;
     }
 
     buffer = unsafe { buffer.add(8) };
