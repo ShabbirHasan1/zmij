@@ -31,6 +31,7 @@
 mod tests;
 
 use core::mem::{self, MaybeUninit};
+use core::ptr;
 use core::slice;
 use core::str;
 
@@ -771,7 +772,6 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     let (a, bb) = divmod100(abb);
     let (dd, ee) = divmod100(ddee);
 
-    let start = buffer;
     unsafe {
         *buffer = b'0' + a as u8;
         buffer = buffer.add(usize::from(a != 0));
@@ -785,9 +785,7 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
         buffer.cast::<u64>().write_unaligned(digits);
     }
     if ffgghhii == 0 {
-        buffer = unsafe { buffer.add(count_trailing_nonzeros(digits)) };
-        buffer = unsafe { buffer.sub(usize::from(buffer.offset_from(start) == 1)) };
-        return buffer;
+        return unsafe { buffer.add(count_trailing_nonzeros(digits)) };
     }
 
     buffer = unsafe { buffer.add(8) };
@@ -973,11 +971,48 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     } = to_decimal(bin_sig, bin_exp, regular);
     dec_exp += 15 + i32::from(dec_sig >= const { 10u64.pow(16) });
 
-    let start = buffer;
-    unsafe {
-        buffer = write_significand(buffer.add(1), dec_sig);
-        *start = *start.add(1);
-        *start.add(1) = b'.';
+    let end = unsafe { write_significand(buffer.add(1), dec_sig) };
+    let length = unsafe { end.offset_from_unsigned(buffer.add(1)) };
+
+    let kk = dec_exp + 1;
+    if length as i32 <= kk && kk <= 16 {
+        // 1234e7 -> 12340000000.0
+        unsafe {
+            ptr::copy(buffer.add(1), buffer, length);
+            ptr::write_bytes(buffer.add(length), b'0', kk as usize - length);
+            *buffer.add(kk as usize) = b'.';
+            *buffer.add(kk as usize + 1) = b'0';
+            return buffer.add(kk as usize + 2);
+        }
+    } else if 0 < kk && kk <= 16 {
+        // 1234e-2 -> 12.34
+        unsafe {
+            ptr::copy(buffer.add(1), buffer, kk as usize);
+            *buffer.add(kk as usize) = b'.';
+            return buffer.add(length + 1);
+        }
+    } else if -5 < kk && kk <= 0 {
+        // 1234e-6 -> 0.001234
+        unsafe {
+            ptr::copy(buffer.add(1), buffer.add((2 - kk) as usize), length);
+            *buffer = b'0';
+            *buffer.add(1) = b'.';
+            ptr::write_bytes(buffer.add(2), b'0', -kk as usize);
+            return buffer.add((2 - kk) as usize + length);
+        }
+    } else if length == 1 {
+        // 1e30
+        unsafe {
+            *buffer = *buffer.add(1);
+            buffer = buffer.add(1);
+        }
+    } else {
+        // 1234e30 -> 1.234e33
+        unsafe {
+            *buffer = *buffer.add(1);
+            *buffer.add(1) = b'.';
+            buffer = buffer.add(length + 1);
+        }
     }
 
     unsafe {
