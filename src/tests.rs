@@ -1,13 +1,9 @@
 use core::mem;
 
 const _: () = {
-    let static_data = size_of_val(&crate::POW10_SIGNIFICANDS) + size_of_val(&crate::DIGITS2);
+    let static_data =
+        mem::size_of_val(&crate::POW10_SIGNIFICANDS) + mem::size_of_val(&crate::DIGITS2);
     assert!(static_data == 10072); // 9.8K
-
-    // Replace with core::mem::size_of_val in Rust 1.85+.
-    const fn size_of_val<T>(_: &T) -> usize {
-        mem::size_of::<T>()
-    }
 };
 
 #[test]
