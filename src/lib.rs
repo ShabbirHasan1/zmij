@@ -822,8 +822,6 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     }
 }
 
-const NUM_BITS: u32 = mem::size_of::<f64>() as u32 * 8;
-
 #[allow(non_camel_case_types)]
 struct fp {
     sig: u64,
@@ -876,12 +874,13 @@ where
 
         // Switch to a fixed-point representation with the integral part in the
         // upper 4 bits and the rest being the fractional part.
+        let num_bits = mem::size_of::<UInt>() as i32 * 8;
         const NUM_INTEGRAL_BITS: i32 = 4;
-        const NUM_FRACTIONAL_BITS: i32 = NUM_BITS as i32 - NUM_INTEGRAL_BITS;
-        let ten = UInt::from(10) << NUM_FRACTIONAL_BITS;
+        let num_fractional_bits = num_bits - NUM_INTEGRAL_BITS;
+        let ten = UInt::from(10) << num_fractional_bits;
         // Fixed-point remainder of the scaled significand modulo 10.
         let rem10 =
-            (digit << NUM_FRACTIONAL_BITS) | UInt::truncate(fractional >> NUM_INTEGRAL_BITS);
+            (digit << num_fractional_bits) | UInt::truncate(fractional >> NUM_INTEGRAL_BITS);
         // dec_exp is chosen so that 10**dec_exp <= 2**bin_exp < 10**(dec_exp + 1).
         // Since 1ulp == 2**bin_exp it will be in the range [1, 10) after scaling
         // by 10**dec_exp. Add 1 to combine the shift with division by two.
@@ -897,7 +896,7 @@ where
             // Near-boundary case for rounding to nearest 10.
             ten.wrapping_sub(upper) > UInt::from(1)
         } {
-            let round = (upper >> NUM_FRACTIONAL_BITS) >= UInt::from(10);
+            let round = (upper >> num_fractional_bits) >= UInt::from(10);
             let shorter = UInt::truncate(integral - digit.into() + u64::from(round) * 10);
             let longer = UInt::truncate(integral + u64::from(fractional >= (1 << 63)));
             return fp {
@@ -972,6 +971,7 @@ where
 unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     let bits = value.to_bits();
 
+    const NUM_BITS: i32 = mem::size_of::<f64>() as i32 * 8;
     unsafe {
         *buffer = b'-';
         buffer = buffer.add((bits >> (NUM_BITS - 1)) as usize);
@@ -982,7 +982,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     let mut bin_sig = bits & (IMPLICIT_BIT - 1); // binary significand
     let mut regular = bin_sig != 0;
 
-    const NUM_EXP_BITS: i32 = NUM_BITS as i32 - NUM_SIG_BITS - 1;
+    const NUM_EXP_BITS: i32 = NUM_BITS - NUM_SIG_BITS - 1;
     const EXP_MASK: i32 = (1 << NUM_EXP_BITS) - 1;
     const EXP_BIAS: i32 = (1 << (NUM_EXP_BITS - 1)) - 1;
     let mut bin_exp = (bits >> NUM_SIG_BITS) as i32 & EXP_MASK; // binary exponent
