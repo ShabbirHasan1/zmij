@@ -890,7 +890,7 @@ where
         // An optimization from yy by Yaoyuan Guo:
         if {
             // Exact half-ulp tie when rounding to nearest integer.
-            fractional != (1 << 63) &&
+            fractional != (1 << (num_bits - 1)) &&
             // Exact half-ulp tie when rounding to nearest 10.
             rem10 != half_ulp10 &&
             // Near-boundary case for rounding to nearest 10.
@@ -898,7 +898,7 @@ where
         } {
             let round = (upper >> num_fractional_bits) >= UInt::from(10);
             let shorter = UInt::truncate(integral - digit.into() + u64::from(round) * 10);
-            let longer = UInt::truncate(integral + u64::from(fractional >= (1 << 63)));
+            let longer = UInt::truncate(integral + u64::from(fractional >= (1 << (num_bits - 1))));
             return fp {
                 sig: if rem10 <= half_ulp10 || round {
                     shorter.into()
@@ -1013,7 +1013,15 @@ where
         sig: dec_sig,
         exp: mut dec_exp,
     } = to_decimal(bin_sig, bin_exp, regular);
-    let num_digits = 15 + usize::from(dec_sig >= 10_000_000_000_000_000);
+    let num_digits = 15
+        + usize::from(
+            dec_sig
+                >= if num_bits == 64 {
+                    10_000_000_000_000_000
+                } else {
+                    100_000_000
+                },
+        );
     dec_exp += num_digits as i32;
 
     let mut end = unsafe { write_significand(buffer.add(1), dec_sig) };
