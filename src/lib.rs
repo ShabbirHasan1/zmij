@@ -1008,18 +1008,14 @@ where
     bin_exp -= num_sig_bits + exp_bias;
 
     let fp {
-        sig: dec_sig,
+        sig: mut dec_sig,
         exp: mut dec_exp,
     } = to_decimal(bin_sig, bin_exp, regular);
-    let num_digits = 15
-        + usize::from(
-            dec_sig
-                >= if num_bits == 64 {
-                    10_000_000_000_000_000
-                } else {
-                    100_000_000
-                },
-        );
+    if num_bits == 32 {
+        dec_sig *= 100_000_000;
+        dec_exp -= 8;
+    }
+    let num_digits = 15 + usize::from(dec_sig >= 10_000_000_000_000_000);
     dec_exp += num_digits as i32;
 
     let mut end = unsafe { write_significand(buffer.add(1), dec_sig) };
