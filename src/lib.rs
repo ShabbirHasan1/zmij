@@ -956,7 +956,7 @@ where
 /// Writes the shortest correctly rounded decimal representation of `value` to
 /// `buffer`. `buffer` should point to a buffer of size `buffer_size` or larger.
 #[cfg_attr(feature = "no-panic", no_panic)]
-unsafe fn dtoa<Float>(value: Float, mut buffer: *mut u8) -> *mut u8
+unsafe fn to_string<Float>(value: Float, mut buffer: *mut u8) -> *mut u8
 where
     Float: traits::Float,
 {
@@ -1138,7 +1138,7 @@ impl Buffer {
     #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn format_finite<F: Float>(&mut self, f: F) -> &str {
         unsafe {
-            let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
+            let end = to_string(f, self.bytes.as_mut_ptr().cast::<u8>());
             let len = end.offset_from(self.bytes.as_ptr().cast::<u8>()) as usize;
             let slice = slice::from_raw_parts(self.bytes.as_ptr().cast::<u8>(), len);
             str::from_utf8_unchecked(slice)
