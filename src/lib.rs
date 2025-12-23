@@ -1032,7 +1032,7 @@ where
         unsafe { write_significand9(buffer.add(1), dec_sig as u32) }
     };
     dec_exp += num_digits as i32;
-    if subnormal {
+    if subnormal || num_bits == 32 {
         unsafe {
             let mut p = buffer.add(1);
             while *p == b'0' {
