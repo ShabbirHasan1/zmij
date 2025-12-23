@@ -29,13 +29,22 @@ fn test_exhaustive() {
                 min + BATCH_SIZE - 1
             };
 
-            let mut buffer = zmij::Buffer::new();
+            let mut zmij_buffer = zmij::Buffer::new();
+            let mut ryu_buffer = ryu::Buffer::new();
             for u in min..=max {
                 let f = f32::from_bits(u);
                 if !f.is_finite() {
                     continue;
                 }
-                assert_eq!(Ok(f), buffer.format_finite(f).parse());
+                let zmij = zmij_buffer.format_finite(f);
+                assert_eq!(Ok(f), zmij.parse());
+                let ryu = ryu_buffer.format_finite(f);
+                let matches = if ryu.contains('e') && !ryu.contains("e-") {
+                    ryu.split_once('e') == zmij.split_once("e+")
+                } else {
+                    ryu == zmij
+                };
+                assert!(matches, "{ryu} != {zmij}");
             }
 
             let increment = max - min + 1;
