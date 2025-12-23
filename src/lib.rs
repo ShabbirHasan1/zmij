@@ -1120,9 +1120,9 @@ impl Buffer {
     /// calling the `format_finite` method instead of `format` to avoid the
     /// checks for special cases.
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn format(&mut self, f: f64) -> &str {
-        if is_nonfinite(f) {
-            format_nonfinite(f)
+    pub fn format<F: Float>(&mut self, f: F) -> &str {
+        if f.is_nonfinite() {
+            f.format_nonfinite()
         } else {
             self.format_finite(f)
         }
@@ -1144,7 +1144,7 @@ impl Buffer {
     /// [`is_nan`]: f64::is_nan
     /// [`is_infinite`]: f64::is_infinite
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn format_finite(&mut self, f: f64) -> &str {
+    pub fn format_finite<F: Float>(&mut self, f: F) -> &str {
         unsafe {
             let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
             let len = end.offset_from(self.bytes.as_ptr().cast::<u8>()) as usize;
@@ -1154,25 +1154,66 @@ impl Buffer {
     }
 }
 
-#[cfg_attr(feature = "no-panic", no_panic)]
-fn is_nonfinite(f: f64) -> bool {
-    const EXP_MASK: u64 = 0x7ff0000000000000;
-    let bits = f.to_bits();
-    bits & EXP_MASK == EXP_MASK
+/// A floating point number, f32 or f64, that can be written into a
+/// [`zmij::Buffer`][Buffer].
+///
+/// This trait is sealed and cannot be implemented for types outside of the
+/// `zmij` crate.
+#[allow(private_bounds)]
+pub trait Float: Sealed {}
+impl Float for f32 {}
+impl Float for f64 {}
+
+trait Sealed: traits::Float {
+    fn is_nonfinite(self) -> bool;
+    fn format_nonfinite(self) -> &'static str;
 }
 
-#[cold]
-#[cfg_attr(feature = "no-panic", no_panic)]
-fn format_nonfinite(f: f64) -> &'static str {
-    const MANTISSA_MASK: u64 = 0x000fffffffffffff;
-    const SIGN_MASK: u64 = 0x8000000000000000;
-    let bits = f.to_bits();
-    if bits & MANTISSA_MASK != 0 {
-        NAN
-    } else if bits & SIGN_MASK != 0 {
-        NEG_INFINITY
-    } else {
-        INFINITY
+impl Sealed for f32 {
+    #[inline]
+    fn is_nonfinite(self) -> bool {
+        const EXP_MASK: u32 = 0x7f800000;
+        let bits = self.to_bits();
+        bits & EXP_MASK == EXP_MASK
+    }
+
+    #[cold]
+    #[cfg_attr(feature = "no-panic", inline)]
+    fn format_nonfinite(self) -> &'static str {
+        const MANTISSA_MASK: u32 = 0x007fffff;
+        const SIGN_MASK: u32 = 0x80000000;
+        let bits = self.to_bits();
+        if bits & MANTISSA_MASK != 0 {
+            NAN
+        } else if bits & SIGN_MASK != 0 {
+            NEG_INFINITY
+        } else {
+            INFINITY
+        }
+    }
+}
+
+impl Sealed for f64 {
+    #[inline]
+    fn is_nonfinite(self) -> bool {
+        const EXP_MASK: u64 = 0x7ff0000000000000;
+        let bits = self.to_bits();
+        bits & EXP_MASK == EXP_MASK
+    }
+
+    #[cold]
+    #[cfg_attr(feature = "no-panic", inline)]
+    fn format_nonfinite(self) -> &'static str {
+        const MANTISSA_MASK: u64 = 0x000fffffffffffff;
+        const SIGN_MASK: u64 = 0x8000000000000000;
+        let bits = self.to_bits();
+        if bits & MANTISSA_MASK != 0 {
+            NAN
+        } else if bits & SIGN_MASK != 0 {
+            NEG_INFINITY
+        } else {
+            INFINITY
+        }
     }
 }
 
