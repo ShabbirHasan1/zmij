@@ -82,6 +82,9 @@ mod ftoa_test {
     #[test]
     fn normal() {
         assert_eq!(ftoa(6.62607e-34), "6.62607e-34");
+        assert_eq!(ftoa(9.061488e15), "9.061488e+15");
+        assert_eq!(ftoa(1.342178e+08), "134217800.0");
+        assert_eq!(ftoa(1.3421781e+08), "134217810.0");
     }
 
     #[test]

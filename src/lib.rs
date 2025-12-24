@@ -884,38 +884,46 @@ where
     let exp_shift = bin_exp + pow10_bin_exp + 1;
 
     if regular {
-        let uint128 {
-            hi: integral,
-            lo: fractional,
-        } = umul192_upper128(pow10_hi, pow10_lo, (bin_sig << exp_shift).into());
+        let num_bits = mem::size_of::<UInt>() as i32 * 8;
+        let integral;
+        let fractional;
+        if num_bits == 64 {
+            let result = umul192_upper128(pow10_hi, pow10_lo, (bin_sig << exp_shift).into());
+            integral = result.hi;
+            fractional = result.lo;
+        } else {
+            let result = umul128(pow10_hi, (bin_sig << exp_shift).into());
+            integral = (result >> 64) as u64;
+            fractional = result as u64 & !0xffffffff;
+        }
         let digit = integral % 10;
 
-        // Switch to a fixed-point representation with the integral part in the
-        // upper 4 bits and the rest being the fractional part.
-        const NUM_BITS: i32 = mem::size_of::<u64>() as i32 * 8;
-        const NUM_INTEGRAL_BITS: i32 = 4;
-        const NUM_FRACTIONAL_BITS: i32 = NUM_BITS - NUM_INTEGRAL_BITS;
-        const TEN: u64 = 10 << NUM_FRACTIONAL_BITS;
+        // Switch to a fixed-point representation with the least significant
+        // integral digit in the upper bits and fractional digits in the lower
+        // bits.
+        let num_integral_bits = if num_bits == 64 { 4 } else { 32 };
+        let num_fractional_bits = 64 - num_integral_bits;
+        let ten = 10u64 << num_fractional_bits;
         // Fixed-point remainder of the scaled significand modulo 10.
-        let rem10 = (digit << NUM_FRACTIONAL_BITS) | (fractional >> NUM_INTEGRAL_BITS);
+        let rem10 = (digit << num_fractional_bits) | (fractional >> num_integral_bits);
         // dec_exp is chosen so that 10**dec_exp <= 2**bin_exp < 10**(dec_exp + 1).
         // Since 1ulp == 2**bin_exp it will be in the range [1, 10) after scaling
         // by 10**dec_exp. Add 1 to combine the shift with division by two.
-        let half_ulp10 = pow10_hi >> (NUM_INTEGRAL_BITS - exp_shift + 1);
+        let half_ulp10 = pow10_hi >> (num_integral_bits - exp_shift + 1);
         let upper = rem10 + half_ulp10;
 
         // An optimization from yy by Yaoyuan Guo:
         if {
             // Exact half-ulp tie when rounding to nearest integer.
-            fractional != (1 << (NUM_BITS - 1)) &&
+            fractional != (1 << 63) &&
             // Exact half-ulp tie when rounding to nearest 10.
             rem10 != half_ulp10 &&
             // Near-boundary case for rounding to nearest 10.
-            TEN.wrapping_sub(upper) > 1
+            ten.wrapping_sub(upper) > 1
         } {
-            let round = (upper >> NUM_FRACTIONAL_BITS) >= 10;
+            let round = (upper >> num_fractional_bits) >= 10;
             let shorter = integral - digit + u64::from(round) * 10;
-            let longer = integral + u64::from(fractional >= (1 << (NUM_BITS - 1)));
+            let longer = integral + u64::from(fractional >= (1 << 63));
             return fp {
                 sig: if rem10 <= half_ulp10 || round {
                     shorter
