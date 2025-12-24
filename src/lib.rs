@@ -1022,15 +1022,17 @@ where
         exp: mut dec_exp,
     } = to_decimal(bin_sig, bin_exp, regular);
     let mut num_digits = Float::MAX_DIGITS10 - 2;
-    let mut end = if num_bits == 64 {
+    let mut end;
+    if num_bits == 64 {
         num_digits += u32::from(dec_sig >= 10_000_000_000_000_000);
-        unsafe { write_significand17(buffer.add(1), dec_sig) }
+        end = unsafe { write_significand17(buffer.add(1), dec_sig) };
     } else {
         num_digits += u32::from(dec_sig >= 100_000_000);
-        unsafe { write_significand9(buffer.add(1), dec_sig as u32) }
-    };
+        end = unsafe { write_significand9(buffer.add(1), dec_sig as u32) };
+        subnormal = dec_sig < 10_000_000; // Remove leading zero.
+    }
     dec_exp += num_digits as i32;
-    if subnormal || num_bits == 32 {
+    if subnormal {
         unsafe {
             let mut p = buffer.add(1);
             while *p == b'0' {
