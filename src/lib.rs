@@ -855,10 +855,31 @@ struct fp {
     exp: i32,
 }
 
+fn normalize<UInt>(mut dec: fp, subnormal: bool) -> fp
+where
+    UInt: traits::UInt,
+{
+    if !subnormal {
+        return dec;
+    }
+    let num_bits = mem::size_of::<UInt>() * 8;
+    while dec.sig
+        < if num_bits == 64 {
+            10_000_000_000_000_000
+        } else {
+            100_000_000
+        }
+    {
+        dec.sig *= 10;
+        dec.exp -= 1;
+    }
+    dec
+}
+
 // Converts a binary FP number bin_sig * 2**bin_exp to the shortest decimal
 // representation.
 #[cfg_attr(feature = "no-panic", no_panic)]
-fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool) -> fp
+fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool, subnormal: bool) -> fp
 where
     UInt: traits::UInt,
 {
@@ -893,7 +914,7 @@ where
     let exp_shift = bin_exp + pow10_bin_exp + 1;
 
     let num_bits = mem::size_of::<UInt>() as i32 * 8;
-    if regular {
+    if regular & !subnormal {
         let integral;
         let fractional;
         if num_bits == 64 {
@@ -968,10 +989,13 @@ where
     // It is less or equal to the upper bound by construction.
     let shorter = UInt::from(10) * ((upper >> BOUND_SHIFT) / UInt::from(10));
     if (shorter << BOUND_SHIFT) >= lower {
-        return fp {
-            sig: shorter.into(),
-            exp: dec_exp,
-        };
+        return normalize::<UInt>(
+            fp {
+                sig: shorter.into(),
+                exp: dec_exp,
+            },
+            subnormal,
+        );
     }
 
     let scaled_sig: u64 =
@@ -984,14 +1008,18 @@ where
     let cmp = scaled_sig.wrapping_sub((dec_sig_below + dec_sig_above) << 1) as i64;
     let below_closer = cmp < 0 || (cmp == 0 && (dec_sig_below & 1) == 0);
     let below_in = (dec_sig_below << BOUND_SHIFT) >= lower.into();
-    fp {
-        sig: if below_closer & below_in {
-            dec_sig_below
-        } else {
-            dec_sig_above
+    let dec_sig = if below_closer & below_in {
+        dec_sig_below
+    } else {
+        dec_sig_above
+    };
+    normalize::<UInt>(
+        fp {
+            sig: dec_sig,
+            exp: dec_exp,
         },
-        exp: dec_exp,
-    }
+        subnormal,
+    )
 }
 
 /// Writes the shortest correctly rounded decimal representation of `value` to
@@ -1039,32 +1067,22 @@ where
     bin_exp -= num_sig_bits + exp_bias;
 
     let fp {
-        sig: dec_sig,
+        sig: mut dec_sig,
         exp: mut dec_exp,
-    } = to_decimal(bin_sig, bin_exp, regular);
+    } = to_decimal(bin_sig, bin_exp, regular, subnormal);
     let mut num_digits = Float::MAX_DIGITS10 - 2;
-    let mut end;
-    if num_bits == 64 {
+    let end = if num_bits == 64 {
         num_digits += u32::from(dec_sig >= 10_000_000_000_000_000);
-        end = unsafe { write_significand17(buffer.add(1), dec_sig) };
+        unsafe { write_significand17(buffer.add(1), dec_sig) }
     } else {
-        num_digits += u32::from(dec_sig >= 100_000_000);
-        end = unsafe { write_significand9(buffer.add(1), dec_sig as u32) };
-        subnormal = dec_sig < 10_000_000; // Remove leading zero.
-    }
-    dec_exp += num_digits as i32;
-    if subnormal {
-        unsafe {
-            let mut p = buffer.add(1);
-            while *p == b'0' {
-                p = p.add(1);
-            }
-            let num_zeros = p.offset_from(buffer.add(1)) as usize;
-            ptr::copy(p, buffer.add(1), num_digits as usize - num_zeros + 1);
-            dec_exp -= num_zeros as i32;
-            end = end.sub(num_zeros);
+        if dec_sig < 10_000_000 {
+            dec_sig *= 10;
+            dec_exp -= 1;
         }
-    }
+        num_digits += u32::from(dec_sig >= 100_000_000);
+        unsafe { write_significand9(buffer.add(1), dec_sig as u32) }
+    };
+    dec_exp += num_digits as i32;
 
     let length = unsafe { end.offset_from(buffer.add(1)) } as usize;
 
