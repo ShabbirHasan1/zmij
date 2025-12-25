@@ -1042,7 +1042,7 @@ where
     let num_sig_bits = Float::MANTISSA_DIGITS as i32 - 1;
     let implicit_bit = Float::UInt::from(1) << num_sig_bits;
     let mut bin_sig = bits & (implicit_bit - Float::UInt::from(1)); // binary significand
-    let mut regular = bin_sig != Float::UInt::from(0);
+    let regular = bin_sig != Float::UInt::from(0);
 
     let num_exp_bits = num_bits - num_sig_bits - 1;
     let exp_mask = (1 << num_exp_bits) - 1;
@@ -1062,7 +1062,6 @@ where
         // Handle subnormals.
         bin_sig |= implicit_bit;
         bin_exp = 1;
-        regular = true;
         subnormal = true;
     }
     bin_sig ^= implicit_bit;
